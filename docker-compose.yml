@@ -1,0 +1,9 @@
+services:
+  isaacbot-web:
+    build: .
+    image: isaacbot-web:latest
+    container_name: isaacbot-web
+    restart: unless-stopped
+    ports:
+      # Bind to the VPN address only, so the site is never exposed publicly.
+      - "${HOST_BIND:-10.8.0.1}:${HOST_PORT:-80}:3000"
