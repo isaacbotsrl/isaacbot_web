@@ -1,5 +1,5 @@
-// The hero animation: an Ardennes-like rover catches a falling apple with its arm, stows it in the
-// tray, drives on, and sets it down on the ground. Loaded on demand by RoverArm3D.
+// The hero animation: an apple drops from a branch into the arm of an Ardennes-like rover, which
+// stows it in the tray, drives on, and sets it down on the ground. Loaded on demand by RoverArm3D.
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
@@ -13,13 +13,24 @@ const TRAY = new THREE.Vector3(-0.33, 0.487, 0);
 const CATCH = new THREE.Vector3(0.3, 1.04, -0.3);
 const GROUND = new THREE.Vector3(0, 0.055, 0.6);
 const SHOULDER = ARM_BASE.clone().add(new THREE.Vector3(0, 0.14, 0));
+// Where the apple's stem meets its twig, straight above CATCH.
+const TWIG_END = new THREE.Vector3(CATCH.x, 1.6, CATCH.z);
+// Apple centre to stem tip.
+const STEM = 0.06;
 
 const UPPER_ARM = 0.4;
 const FOREARM = 0.36;
 const TOOL = 0.15;
 const WHEEL_RADIUS = 0.19;
-const DROP_HEIGHT = 2.6;
 const GRAVITY = 9.81;
+const FALL_TIME = Math.sqrt((2 * (TWIG_END.y - STEM - CATCH.y)) / GRAVITY);
+
+const CAMERA_FOV = 30;
+const CAMERA_POS = new THREE.Vector3(2.4, 2.0, 4.2);
+
+// The branch scrolls with the floor. Once it is this far behind it is off screen, and the next
+// tree, one loop's drive ahead, is still off screen on the other side.
+const TREE_BEHIND = 4.2;
 
 /** Joint angles that put the tool tip on `target`, pointing up or down. */
 function solveArm(target: THREE.Vector3, tool: Tool, yawHint = 0): Joints {
@@ -166,10 +177,10 @@ const timeline = (() => {
   // Back home by the nearest turn, then drive off.
   moveJoints([HOME[0] + 2 * Math.round((q[0] - HOME[0]) / (2 * Math.PI)) * Math.PI, HOME[1], HOME[2], HOME[3]]);
   hold(0.4);
-  drive(2.8);
+  drive(3.2);
   hold(0.6);
   ev.total = t;
-  return { segs, grip, ev };
+  return { segs, grip, ev, loopDrive: driven };
 })();
 
 function material(roughness: number, color = 0x0d0d10, metalness = 0.15) {
@@ -436,7 +447,6 @@ function buildApple() {
   }
   const group = new THREE.Group();
   const mat = material(0.32, 0x0e0e11, 0.05);
-  mat.transparent = true;
   group.add(mesh(new THREE.LatheGeometry(profile, 40), mat));
   const stem = mesh(new THREE.CylinderGeometry(0.0035, 0.005, 0.035, 8), mat, [0.003, 0.044, 0]);
   stem.rotation.z = -0.25;
@@ -446,7 +456,136 @@ function buildApple() {
   const leaf = mesh(leafGeo, mat, [0.02, 0.05225, 0]);
   leaf.rotation.set(0.2, 0.4, 0.35);
   group.add(leaf);
-  return { group, material: mat };
+  return group;
+}
+
+/** A tube along `curve` whose radius shrinks from r0 to r1. */
+function taperedTube(curve: THREE.Curve<THREE.Vector3>, r0: number, r1: number, segments = 40) {
+  const radial = 8;
+  const geo = new THREE.TubeGeometry(curve, segments, 1, radial, false);
+  const pos = geo.attributes.position;
+  const centre = new THREE.Vector3();
+  const p = new THREE.Vector3();
+  for (let i = 0; i <= segments; i++) {
+    curve.getPointAt(i / segments, centre);
+    const r = r0 + (r1 - r0) * (i / segments);
+    for (let j = 0; j <= radial; j++) {
+      const k = i * (radial + 1) + j;
+      p.fromBufferAttribute(pos, k).sub(centre).multiplyScalar(r).add(centre);
+      pos.setXYZ(k, p.x, p.y, p.z);
+    }
+  }
+  return geo;
+}
+
+function leafGeometry() {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0);
+  shape.bezierCurveTo(0.03, 0.034, 0.078, 0.042, 0.12, 0);
+  shape.bezierCurveTo(0.078, -0.042, 0.03, -0.034, 0, 0);
+  const geo = new THREE.ShapeGeometry(shape, 10);
+  // Arch the blade along its length and cup it across.
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    pos.setZ(i, -1.2 * x * (0.12 - x) + 4 * y * y);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * The branch the apple hangs from, reaching down from above the top-right corner. Everything
+ * hangs off `pivot`, at the branch's base, so the whole branch can droop under the apple and
+ * spring back.
+ */
+function buildBranch() {
+  const base = new THREE.Vector3(1.5, 2.5, -1.5);
+  const local = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z).sub(base);
+
+  const root = new THREE.Group();
+  root.position.copy(base);
+  const pivot = new THREE.Group();
+  root.add(pivot);
+
+  const bark = material(0.85, 0x18181c, 0);
+  const leafMaterial = new THREE.MeshStandardMaterial({
+    color: 0x26262b,
+    roughness: 0.6,
+    metalness: 0.05,
+    side: THREE.DoubleSide,
+  });
+
+  // Starts high above the frame, so its base never shows, even scrolled away.
+  const main = new THREE.CatmullRomCurve3([
+    local(1.5, 2.5, -1.5),
+    local(1.32, 2.18, -1.25),
+    local(1.15, 1.94, -1.05),
+    local(0.75, 1.78, -0.6),
+    local(0.45, 1.71, -0.38),
+    local(0.2, 1.7, -0.24),
+    local(0.04, 1.73, -0.15),
+  ]);
+  pivot.add(mesh(taperedTube(main, 0.06, 0.009, 80), bark));
+  pivot.add(mesh(new THREE.SphereGeometry(0.009, 10, 6), bark, main.getPointAt(1).toArray()));
+
+  const fork = new THREE.CatmullRomCurve3([
+    local(0.75, 1.78, -0.6),
+    local(0.63, 1.86, -0.52),
+    local(0.5, 1.91, -0.5),
+  ]);
+  pivot.add(mesh(taperedTube(fork, 0.02, 0.006, 20), bark));
+
+  const twigEnd = local(TWIG_END.x, TWIG_END.y, TWIG_END.z);
+  const twig = new THREE.CatmullRomCurve3([local(0.31, 1.705, -0.3), local(0.305, 1.65, -0.3), twigEnd]);
+  pivot.add(mesh(taperedTube(twig, 0.007, 0.0045, 10), bark));
+
+  // Leaves along both branches: [curve, position along it, side, droop, roll, size].
+  const geo = leafGeometry();
+  const spots: [THREE.Curve<THREE.Vector3>, number, number, number, number, number][] = [
+    [main, 0.55, 1, 0.3, 0.4, 1],
+    [main, 0.61, -1, 0.5, -0.3, 0.9],
+    [main, 0.68, 1, 0.7, 0.5, 1.05],
+    [main, 0.74, -1, 0.4, -0.5, 1.1],
+    [main, 0.79, 1, 0.2, 0.3, 0.95],
+    [main, 0.86, -1, 0.35, -0.4, 0.9],
+    [main, 0.91, 1, 0.5, 0.2, 0.85],
+    [main, 0.96, -1, 0.1, -0.3, 0.8],
+    [main, 1.0, 0, -0.15, 0, 0.75],
+    [fork, 0.45, 1, 0.1, 0.4, 0.8],
+    [fork, 0.75, -1, 0.2, -0.5, 0.85],
+    [fork, 1, 1, -0.3, 0.3, 0.8],
+  ];
+  const up = new THREE.Vector3(0, 1, 0);
+  const basis = new THREE.Matrix4();
+  const leaves = spots.map(([curve, at, side, droop, roll, size], i) => {
+    const tangent = curve.getTangentAt(at);
+    const across = new THREE.Vector3().crossVectors(tangent, up).normalize();
+    const along = tangent
+      .clone()
+      .multiplyScalar(0.7)
+      .addScaledVector(across, side)
+      .addScaledVector(up, -droop)
+      .normalize();
+    const at3 = curve.getPointAt(at);
+    // Turn the blade towards the camera, which sits almost level with the branch; seen edge-on,
+    // the leaves would vanish. The roll keeps them from all facing it squarely.
+    const toCamera = CAMERA_POS.clone().sub(at3.clone().add(base));
+    const face = toCamera.addScaledVector(along, -toCamera.dot(along)).normalize();
+    const leaf = mesh(geo, leafMaterial, at3.toArray());
+    leaf.quaternion.setFromRotationMatrix(basis.makeBasis(along, new THREE.Vector3().crossVectors(face, along), face));
+    leaf.rotateX(roll);
+    leaf.scale.setScalar(1.3 * size);
+    pivot.add(leaf);
+    return { leaf, rest: leaf.quaternion.clone(), phase: i * 1.7 };
+  });
+
+  // Rotating about this axis by a positive angle lowers the branch tip.
+  const reach = main.getPointAt(1).setY(0).normalize();
+  const droopAxis = new THREE.Vector3().crossVectors(up, reach).normalize();
+
+  return { root, pivot, leaves, twigEnd, droopAxis };
 }
 
 /** Joints, distance driven and drive acceleration at time t of the loop. */
@@ -521,9 +660,10 @@ export function createHeroScene(container: HTMLElement, options: { reducedMotion
   scene.environment = envMap;
   scene.environmentIntensity = 0.75;
 
-  const camera = new THREE.PerspectiveCamera(26, 1, 0.1, 30);
-  camera.position.set(2.25, 1.85, 3.95);
-  camera.lookAt(new THREE.Vector3(0.02, 0.5, 0.12));
+  // Framed with room above the rover for the branch.
+  const camera = new THREE.PerspectiveCamera(CAMERA_FOV, 1, 0.1, 30);
+  camera.position.copy(CAMERA_POS);
+  camera.lookAt(new THREE.Vector3(0.05, 0.75, 0.1));
 
   const key = new THREE.DirectionalLight(0xffffff, 2.2);
   key.position.set(1.2, 3.2, 1.6);
@@ -550,13 +690,35 @@ export function createHeroScene(container: HTMLElement, options: { reducedMotion
   scene.add(floor.dots, floor.shadow);
   const rover = buildRover();
   scene.add(rover.root);
-  const { group: apple, material: appleMaterial } = buildApple();
-  scene.add(apple);
+  const branch = buildBranch();
+  scene.add(branch.root);
+  const branchX = branch.root.position.x;
+  const apple = buildApple();
+  // The next loop's apple, hanging on the next tree as it comes into view.
+  const nextApple = buildApple();
+  scene.add(apple, nextApple);
 
   const pitchSpring = new Spring(11, 0.35);
   const swaySpring = new Spring(9, 0.25);
   const squatSpring = new Spring(14, 0.3);
+  // Underdamped, so the branch bounces when the apple lets go.
+  const droopSpring = new Spring(15, 0.1);
   const tmp = new THREE.Vector3();
+  const qSway = new THREE.Quaternion();
+  const qDroop = new THREE.Quaternion();
+  const qFlutter = new THREE.Quaternion();
+  const leafAxis = new THREE.Vector3(1, 0, 0);
+  const yAxis = new THREE.Vector3(0, 1, 0);
+  // Where the apple let go of the twig, to fall from.
+  const releasedAt = TWIG_END.clone().setY(TWIG_END.y - STEM);
+
+  /** Hangs an apple from the twig, swinging gently like a pendulum. */
+  function hang(a: THREE.Group, t: number) {
+    branch.pivot.localToWorld(tmp.copy(branch.twigEnd));
+    const swing = 0.05 * Math.sin(2.4 * t);
+    a.position.set(tmp.x + STEM * Math.sin(swing), tmp.y - STEM * Math.cos(swing), tmp.z);
+    a.rotation.set(0, 0, swing);
+  }
 
   function update(t: number, dt: number) {
     const pose = poseAt(t);
@@ -578,19 +740,39 @@ export function createHeroScene(container: HTMLElement, options: { reducedMotion
     arm.fingers[1].position.z = gap + 0.008;
     rover.root.updateMatrixWorld(true);
 
-    // The apple: falling, held, in the tray, or left behind on the ground.
+    // The branch: scrolls with the floor, then the next tree comes in from ahead. It droops under
+    // a hanging apple, springs back when it drops, and sways a little all the time.
     const ev = timeline.ev;
-    const fallTime = Math.sqrt((2 * (DROP_HEIGHT - CATCH.y)) / GRAVITY);
+    const release = ev.catch - FALL_TIME;
+    const nextTree = pose.d > TREE_BEHIND;
+    branch.root.position.x = branchX + (nextTree ? timeline.loopDrive - pose.d : -pose.d);
+    const loaded = t < release || nextTree;
+    const droop = droopSpring.step(loaded ? 0.022 : 0, dt);
+    qSway.setFromAxisAngle(yAxis, 0.008 * Math.sin(1.1 * t) + 0.005 * Math.sin(2.3 * t + 1));
+    qDroop.setFromAxisAngle(branch.droopAxis, droop + 0.006 * Math.sin(1.7 * t + 0.5));
+    branch.pivot.quaternion.multiplyQuaternions(qSway, qDroop);
+    for (const { leaf, rest, phase } of branch.leaves) {
+      const flutter = 0.07 * Math.sin(3.1 * t + phase) + 0.5 * droopSpring.v * Math.sin(phase);
+      leaf.quaternion.copy(rest).multiply(qFlutter.setFromAxisAngle(leafAxis, flutter));
+    }
+    branch.root.updateMatrixWorld(true);
+
+    nextApple.visible = nextTree;
+    if (nextTree) hang(nextApple, t);
+
+    // The apple: hanging, falling, held, in the tray, or left behind on the ground.
     apple.visible = true;
-    appleMaterial.opacity = 1;
     apple.rotation.set(0, 0, 0);
-    if (t < ev.catch - fallTime) {
-      apple.visible = false;
+    if (t < release) {
+      hang(apple, t);
+      releasedAt.copy(apple.position);
     } else if (t < ev.catch) {
+      // Accelerating from where it hung into the gripper, at about g.
       const left = ev.catch - t;
-      apple.position.set(CATCH.x, CATCH.y + 0.5 * GRAVITY * left * left, CATCH.z);
-      apple.rotation.set(1.5 * left, 0, 2.2 * left);
-      appleMaterial.opacity = THREE.MathUtils.clamp((DROP_HEIGHT - apple.position.y) / 0.6, 0, 1);
+      apple.position.copy(CATCH).lerp(releasedAt, (left / FALL_TIME) ** 2);
+      // A slight tumble on the way down, upright again when caught.
+      const tumble = left * (FALL_TIME - left);
+      apple.rotation.set(6 * tumble, 0, 9 * tumble);
     } else if (t < ev.trayRelease || (t >= ev.trayPick && t < ev.groundRelease)) {
       arm.grasp.getWorldPosition(apple.position);
     } else if (t < ev.trayPick) {
@@ -613,7 +795,7 @@ export function createHeroScene(container: HTMLElement, options: { reducedMotion
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     // Widen the view on portrait screens so the rover stays in frame.
-    camera.fov = width / height < 1 ? 26 / Math.max(width / height, 0.75) : 26;
+    camera.fov = width / height < 1 ? CAMERA_FOV / Math.max(width / height, 0.75) : CAMERA_FOV;
     camera.updateProjectionMatrix();
   }
 
