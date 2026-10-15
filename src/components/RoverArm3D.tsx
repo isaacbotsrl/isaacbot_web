@@ -9,7 +9,7 @@ function AppleArm() {
       className="apple-arm"
       viewBox="70 0 380 430"
       role="img"
-      aria-label="An apple falls into the IsaacBot robot arm, which pushes it onward"
+      aria-label="An apple falls into the Isaacbot robot arm, which pushes it onward"
     >
       <defs>
         <mask id="arm-joints" maskUnits="userSpaceOnUse" x="-200" y="-200" width="1000" height="900">
@@ -93,7 +93,7 @@ export default function RoverArm3D() {
       ref={ref}
       className="rover-arm-3d"
       role="img"
-      aria-label="A four-wheel IsaacBot rover with a robot arm catches a falling apple, stows it and delivers it"
+      aria-label="A four-wheel Isaacbot rover with a robot arm catches a falling apple, stows it and delivers it"
     />
   );
 }

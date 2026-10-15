@@ -1,6 +1,6 @@
 # isaacbot-web
 
-The IsaacBot website: a one-page company site (`/`) and the Ardennes product page (`/ardennes`).
+The Isaacbot website: a one-page company site (`/`) and the Ardennes product page (`/ardennes`).
 Next.js 15 (App Router), React 19, three.js for the hero animation.
 
 | Path | What |

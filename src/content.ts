@@ -1,7 +1,7 @@
 // All copy for the home page, plus the site-wide constants the Ardennes page shares.
 
 export const site = {
-  company: "IsaacBot",
+  company: "Isaacbot",
   product: "Ardennes",
   slogan: "From a falling apple to autonomous logistics.",
   contactEmail: "potlogradu@gmail.com",
@@ -20,7 +20,7 @@ export const hero = {
   eyebrow: `${site.company} · Rovers & Manipulators`,
   titleLines: ["From a falling apple", "to autonomous logistics."],
   lead:
-    "Newton watched an apple fall and wrote down the laws of motion. IsaacBot puts those laws to work: " +
+    "Newton watched an apple fall and wrote down the laws of motion. Isaacbot puts those laws to work: " +
     "autonomous rovers that move goods and robotic manipulators that handle them.",
   primaryCta: { label: "Our projects", href: "#projects" },
   secondaryCta: { label: "Get in touch", href: "#contact" },
@@ -92,7 +92,7 @@ export const team: {
   eyebrow: "Our team",
   titleLines: ["The people", "behind the motion."],
   intro:
-    "IsaacBot is built by engineers who care about robots that work outside the lab: safe, open and " +
+    "Isaacbot is built by engineers who care about robots that work outside the lab: safe, open and " +
     "dependable from the first prototype to daily operation.",
   members: [
     {

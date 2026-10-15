@@ -17,13 +17,13 @@ export type Feature = {
 
 export const ardennes = {
   metaDescription:
-    "Ardennes is a rugged four-wheel-drive ROS 2 mobile robot platform by IsaacBot, with a hardware safety " +
+    "Ardennes is a rugged four-wheel-drive ROS 2 mobile robot platform by Isaacbot, with a hardware safety " +
     "chain, an open aluminium-profile frame and fleet-ready VDA 5050 integration.",
   brand: {
     logo: "/brand/ardennes-lockup-black.svg",
     logoWhite: "/brand/ardennes-lockup-white.svg",
     alt: "Ardennes",
-    tagline: "Rugged autonomy, built for the field. An IsaacBot project.",
+    tagline: "Rugged autonomy, built for the field. An Isaacbot project.",
   },
   nav: [
     { label: "Overview", href: "#overview" },
@@ -32,7 +32,7 @@ export const ardennes = {
     { label: "Software", href: "#software" },
   ],
   hero: {
-    eyebrow: "IsaacBot · Ardennes",
+    eyebrow: "Isaacbot · Ardennes",
     titleLines: ["Ardennes.", "Rugged autonomy, built for the field."],
     lead:
       "A four-wheel-drive mobile robot platform for outdoor and indoor work, with a hardware safety chain " +

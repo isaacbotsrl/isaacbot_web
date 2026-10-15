@@ -2,7 +2,7 @@
   "name": "isaacbot-web",
   "version": "1.0.0",
   "private": true,
-  "description": "IsaacBot one-page website for the Ardennes rover",
+  "description": "Isaacbot one-page website for the Ardennes rover",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
