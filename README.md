@@ -1,4 +1,11 @@
-# isaacbot-web
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/brand/isaacbot-lockup-white.svg">
+    <img src="public/brand/isaacbot-lockup-black-bold.svg" alt="Isaacbot" width="240">
+  </picture>
+</p>
+
+# isaacbot_web
 
 The Isaacbot website: a one-page company site (`/`) and the Ardennes product page (`/ardennes`).
 Next.js 15 (App Router), React 19, three.js for the hero animation.
