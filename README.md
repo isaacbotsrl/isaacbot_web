@@ -24,10 +24,12 @@ npm run typecheck
 ## Deploy
 
 The site runs on isaacbot-server-001, bound to the WireGuard address only (`10.8.0.1:80`, see
-`docker-compose.yml`). On the server, in this repo's checkout:
+`docker-compose.yml`). The server's checkout is `~/isaacbot_web`; its `.env` (not tracked) sets
+`HOST_PORT`, and optionally `HOST_BIND`.
 
 ```bash
-docker compose up -d --build
+ssh isaacbot-server-001@10.8.0.1
+cd ~/isaacbot_web && git pull && docker compose up -d --build
 ```
 
 ## History
